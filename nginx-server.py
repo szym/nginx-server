@@ -6,10 +6,11 @@ Usage: %prog [path:.] [port:8000]
 import os
 import sys
 import shutil
+import tempfile
 
 conf_template = """\
 error_log /dev/stderr;
-pid /tmp/nginx-server.py.pid;
+pid %(path)s/nginx.pid;
 worker_processes 1;
 
 daemon off;
@@ -21,6 +22,11 @@ http {
     include mime.types;
     default_type application/octet-stream;
     access_log /dev/stdout;
+    client_body_temp_path %(path)s/body;
+    proxy_temp_path %(path)s/proxy;
+    fastcgi_temp_path %(path)s/fastcgi;
+    uwsgi_temp_path %(path)s/uwsgi;
+    scgi_temp_path %(path)s/scgi;
 
     gzip             on;
     gzip_http_version 1.1;
@@ -57,12 +63,14 @@ def main():
 
     address = "http://localhost:%s" % port
 
-    conf = "/tmp/nginx.conf"
-    mime_source = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'mime.types')
-    mime_dest = '/tmp/mime.types'
+    workpath = tempfile.mkdtemp(prefix="nginx")
+
+    conf = os.path.join(workpath, "nginx.conf")
+    mime_source = os.path.join(os.path.dirname(os.path.realpath(__file__)), "mime.types")
+    mime_dest = os.path.join(workpath, "mime.types")
     shutil.copyfile(mime_source, mime_dest)
     with open(conf, "w") as f:
-        conf_data = conf_template % dict(root=root, port=port)
+        conf_data = conf_template % dict(root=root, port=port, path=workpath)
         f.write(conf_data)
     print >>sys.stderr, "%r serving in %r" % (root, address)
     os.execvp("nginx", ["nginx", "-c", conf])
